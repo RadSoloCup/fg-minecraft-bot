@@ -3,7 +3,7 @@
 
 services:
   mc-bridge:
-    build: .
+    build: https://github.com/RadSoloCup/fg-minecraft-bot.git#main
     container_name: fluxer-mc-bridge
     restart: unless-stopped
     env_file:

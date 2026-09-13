@@ -25,10 +25,10 @@ server's log file and talking RCON.
    ```
 3. Enable RCON in the Minecraft server's `server.properties`
    (`enable-rcon=true`, `rcon.password=...`) and restart that container.
-4. Copy this whole project + `compose.snippet.yml` (renamed
-   `docker-compose.yml`) + `mc-bridge.env` to
-   `/boot/config/plugins/compose.manager/projects/mc-bridge/` and
-   `docker compose up -d --build`.
+4. Put `compose.snippet.yml` (renamed `docker-compose.yml`) + `mc-bridge.env`
+   in `/boot/config/plugins/compose.manager/projects/mc-bridge/` and run
+   `docker compose up -d --build` — it builds straight from this GitHub repo,
+   no local checkout needed.
 
 The bridge only needs outbound access to Fluxer and RCON access to the
 Minecraft container on `mc-net` — no ports of its own.
