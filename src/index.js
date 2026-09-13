@@ -44,7 +44,7 @@ async function handleCommand(invoker, content) {
 
   let result
   try {
-    result = await runCommand(parsed, rcon)
+    result = await runCommand(parsed, rcon, invoker)
   } catch (err) {
     result = { text: `Error: ${err.message}` }
   }

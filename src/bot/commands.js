@@ -97,7 +97,7 @@ async function cmdRecipe(arg) {
 
 async function cmdMap(rcon, arg) {
   const radiusArg = Number(arg)
-  const radius = Number.isFinite(radiusArg) && radiusArg > 0 ? radiusArg : 600
+  const radius = Number.isFinite(radiusArg) && radiusArg > 0 ? radiusArg : 1200
 
   const { names } = await listPlayers(rcon)
   const markers = []
@@ -141,12 +141,16 @@ function cmdHelp() {
       `${x} where <player> — position + dimension`,
       `${x} seed / time / tps — server info`,
       `${x} recipe <item> — vanilla crafting recipe`,
-      `${x} map [radius] — render the overworld map around players (or spawn), default radius 600`,
+      `${x} map [radius] — render the overworld map around players (or spawn), default radius 1200 (admin only)`,
     ].join('\n'),
   }
 }
 
-export async function runCommand(parsed, rcon) {
+function isAdmin(invoker) {
+  return config.mapAdmins.has(String(invoker || '').toLowerCase())
+}
+
+export async function runCommand(parsed, rcon, invoker) {
   switch (parsed.cmd) {
     case 'help': return cmdHelp()
     case 'list': case 'players': case 'who': return cmdList(rcon)
@@ -155,7 +159,9 @@ export async function runCommand(parsed, rcon) {
     case 'time': case 'weather': return cmdTime(rcon)
     case 'tps': case 'perf': return cmdTps(rcon)
     case 'recipe': case 'craft': case 'crafting': return cmdRecipe(parsed.arg)
-    case 'map': return cmdMap(rcon, parsed.arg)
+    case 'map':
+      if (!isAdmin(invoker)) return { text: `Only admins can run "${p()} map".` }
+      return cmdMap(rcon, parsed.arg)
     default: return { text: `Unknown command "${parsed.cmd}". Try "${p()} help".` }
   }
 }

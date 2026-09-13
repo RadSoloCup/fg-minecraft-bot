@@ -4,6 +4,10 @@ export const config = {
   logPath: env.MC_LOG_PATH || '/mc-logs/latest.log',
   worldDir: env.WORLD_DIR || '/world',
   commandPrefix: env.COMMAND_PREFIX || '!mc',
+  // Names allowed to run admin-only commands (currently just `map`), matched
+  // case-insensitively against either the Minecraft player name or the
+  // Fluxer/Discord display name — whichever surface the command came from.
+  mapAdmins: new Set(String(env.ADMIN_NAMES || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)),
 
   rcon: {
     host: env.RCON_HOST || 'FTB-Direwolf20-1.20',

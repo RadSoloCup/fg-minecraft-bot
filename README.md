@@ -22,9 +22,11 @@ server's log file and talking RCON.
   - `!mc recipe <item>` — vanilla crafting recipe (modded items aren't covered
     — there's no public structured recipe data for this pack's thousands of
     mod items)
-  - `!mc map` — renders a top-down PNG of the currently-generated overworld
-    region files (reading the raw `.mca` files directly, no map mod needed)
-    with online players marked, posted as an image in Fluxer
+  - `!mc map [radius]` — renders a top-down PNG (default 2400x2400 blocks)
+    centered on online players, or world spawn if nobody's on, reading the
+    raw `.mca` region files directly (no map mod needed). This save has
+    3000+ region files from years of exploration, so it only renders the
+    requested square, not the whole world. **Admin-only** (`ADMIN_NAMES`).
 
 ## Deploy (Unraid / Docker Compose)
 

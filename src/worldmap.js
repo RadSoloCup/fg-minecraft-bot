@@ -13,7 +13,7 @@ const REGION_CHUNKS = 32
 const CHUNK_BLOCKS = 16
 const REGION_PX = REGION_CHUNKS * CHUNK_BLOCKS // 512
 const MIN_Y = -64
-const MAX_IMAGE_DIM = 2048
+const MAX_IMAGE_DIM = 4096
 
 function longsFromPairs(pairs) {
   return pairs.map(([hi, lo]) => (BigInt.asUintN(32, BigInt(hi)) << 32n) | BigInt.asUintN(32, BigInt(lo)))
