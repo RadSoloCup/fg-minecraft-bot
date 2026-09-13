@@ -1,0 +1,20 @@
+# Deploy as its own tiny Compose project (see README for the full steps):
+# /boot/config/plugins/compose.manager/projects/mc-bridge/
+
+services:
+  mc-bridge:
+    build: .
+    container_name: fluxer-mc-bridge
+    restart: unless-stopped
+    env_file:
+      - ./mc-bridge.env       # copy of .env.example, filled in
+    volumes:
+      # Read-only view of the Minecraft server's log directory.
+      - /mnt/user/appdata/ftbdirewolf20_120/logs:/mc-logs:ro
+    networks:
+      - mc-net                # shared with the Minecraft container, for RCON
+
+networks:
+  mc-net:
+    external: true            # created once: `docker network create mc-net`
+                               # then: `docker network connect mc-net FTB-Direwolf20-1.20`

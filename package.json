@@ -1,0 +1,16 @@
+{
+  "name": "fightersguild-mc-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bidirectional chat bridge between the Fighters Guild Minecraft server and a Fluxer channel",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {},
+  "license": "AGPL-3.0-or-later"
+}
