@@ -2,6 +2,8 @@ const env = process.env
 
 export const config = {
   logPath: env.MC_LOG_PATH || '/mc-logs/latest.log',
+  worldDir: env.WORLD_DIR || '/world',
+  commandPrefix: env.COMMAND_PREFIX || '!mc',
 
   rcon: {
     host: env.RCON_HOST || 'FTB-Direwolf20-1.20',
@@ -11,6 +13,11 @@ export const config = {
 
   fluxer: {
     webhookUrl: env.FLUXER_WEBHOOK_URL || null,
+    // Parsed from .../api/webhooks/<id>/<token> — lets the gateway ignore only
+    // this bridge's own echo, without blanket-filtering every webhook message
+    // (Crosstalk relays real Discord users through its own webhook, and those
+    // need to reach the command handler / MC relay).
+    ownWebhookId: env.FLUXER_WEBHOOK_URL ? (env.FLUXER_WEBHOOK_URL.match(/\/webhooks\/(\d+)\//) || [])[1] || null : null,
     channelId: env.FLUXER_CHANNEL_ID || null,
     botToken: env.FLUXER_BOT_TOKEN || null,
     apiBase: env.FLUXER_API_BASE || (env.FLUXER_WEBHOOK_URL ? new URL(env.FLUXER_WEBHOOK_URL).origin : null),

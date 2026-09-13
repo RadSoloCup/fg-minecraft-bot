@@ -121,10 +121,11 @@ export class GatewayClient extends EventEmitter {
     if (type === 'RESUMED') { log('bot: resumed'); return }
     if (type === 'MESSAGE_CREATE') {
       if (d.author?.id && d.author.id === this.botUserId) return // ignore self
-      // Ignore anything posted via a webhook — that's this same bridge's own
-      // MC->Fluxer relay, and forwarding it back into the game would echo-loop.
-      if (d.webhook_id) return
-      if (d.author?.bot) return
+      // Ignore only OUR OWN webhook's messages (this bridge's MC->Fluxer relay
+      // echoing back) — not webhooks in general, since Crosstalk relays real
+      // Discord users through its own webhook and those should still reach us.
+      if (d.webhook_id && d.webhook_id === config.fluxer.ownWebhookId) return
+      if (d.author?.bot && !d.webhook_id) return // real bot accounts, not webhook-authored humans
       this.emit('message', d)
     }
   }

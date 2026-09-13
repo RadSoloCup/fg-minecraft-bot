@@ -1,0 +1,142 @@
+import { config } from '../config.js'
+import { findRecipe } from '../mcdata.js'
+import { renderMap } from '../worldmap.js'
+
+const p = () => config.commandPrefix
+
+export function parseCommand(content) {
+  if (typeof content !== 'string') return null
+  const trimmed = content.trim()
+  const prefix = config.commandPrefix
+  if (!trimmed.toLowerCase().startsWith(prefix.toLowerCase())) return null
+  const rest = trimmed.slice(prefix.length).trim()
+  const m = rest.match(/^(\S+)([\s\S]*)$/)
+  const cmd = (m ? m[1] : 'help').toLowerCase()
+  const arg = (m ? m[2].trim() : '').replace(/\s+/g, ' ')
+  return { cmd, arg, args: arg.split(/\s+/).filter(Boolean) }
+}
+
+// ── RCON-backed helpers ──────────────────────────────────────────────────────
+
+async function listPlayers(rcon) {
+  const out = await rcon.exec('list')
+  const m = out.match(/There are (\d+) of a max of (\d+) players online:\s*(.*)/)
+  if (!m) return { count: 0, max: 0, names: [] }
+  return { count: Number(m[1]), max: Number(m[2]), names: m[3].split(',').map(s => s.trim()).filter(Boolean) }
+}
+
+async function getPos(rcon, name) {
+  const posOut = await rcon.exec(`data get entity ${name} Pos`)
+  if (/no entity was found/i.test(posOut)) return null
+  const posMatch = posOut.match(/\[(.+)\]/)
+  if (!posMatch) return null
+  const [x, y, z] = posMatch[1].split(',').map(s => Number(s.trim().replace(/[df]$/i, '')))
+  const dimOut = await rcon.exec(`data get entity ${name} Dimension`).catch(() => '')
+  const dim = (dimOut.match(/"([^"]+)"/) || [])[1] || null
+  return { x, y, z, dim }
+}
+
+// ── commands ─────────────────────────────────────────────────────────────
+
+async function cmdList(rcon) {
+  const { count, max, names } = await listPlayers(rcon)
+  const text = count === 0
+    ? 'No players online right now.'
+    : `${count}/${max} online: ${names.join(', ')}`
+  return { text }
+}
+
+async function cmdWhere(rcon, arg) {
+  if (!arg) return { text: `Usage: ${p()} where <player>` }
+  const pos = await getPos(rcon, arg)
+  if (!pos) return { text: `${arg} isn't online (or doesn't exist).` }
+  const dim = (pos.dim || '').replace(/^minecraft:/, '')
+  return { text: `${arg} @ ${Math.round(pos.x)}, ${Math.round(pos.y)}, ${Math.round(pos.z)} in ${dim}` }
+}
+
+async function cmdSeed(rcon) {
+  const out = await rcon.exec('seed')
+  const m = out.match(/Seed: \[(-?\d+)\]/)
+  return { text: m ? `Seed: ${m[1]}` : out }
+}
+
+async function cmdTime(rcon) {
+  const [dayOut, dayTimeOut] = await Promise.all([
+    rcon.exec('time query day'),
+    rcon.exec('time query daytime'),
+  ])
+  const day = (dayOut.match(/The time is (\d+)/) || [])[1]
+  const ticks = Number((dayTimeOut.match(/The time is (\d+)/) || [])[1] ?? 0)
+  const totalMinutes = Math.floor((((ticks / 1000) + 6) % 24) * 60)
+  const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0')
+  const mm = String(totalMinutes % 60).padStart(2, '0')
+  const label = ticks < 12000 ? 'day' : ticks < 13000 ? 'sunset' : ticks < 23000 ? 'night' : 'sunrise'
+  return { text: `Day ${day ?? '?'}, ${hh}:${mm} (${label})` }
+}
+
+async function cmdTps(rcon) {
+  const out = await rcon.exec('forge tps').catch(err => `error: ${err.message}`)
+  const overworld = out.match(/Dim minecraft:overworld[^\n]*Mean tick time: ([\d.]+) ms\. Mean TPS: ([\d.]+)/)
+  const overall = out.match(/Overall: Mean tick time: ([\d.]+) ms\. Mean TPS: ([\d.]+)/)
+  if (!overworld && !overall) return { text: `Couldn't read TPS (unsupported command?): ${out.split('\n')[0].slice(0, 150)}` }
+  const parts = []
+  if (overworld) parts.push(`Overworld: ${overworld[2]} TPS (${overworld[1]} ms/tick)`)
+  if (overall) parts.push(`Overall: ${overall[2]} TPS (${overall[1]} ms/tick)`)
+  return { text: parts.join(' · ') }
+}
+
+async function cmdRecipe(arg) {
+  if (!arg) return { text: `Usage: ${p()} recipe <item> (vanilla items only)` }
+  const r = await findRecipe(arg)
+  if (!r) return { text: `No vanilla recipe found for "${arg}".` }
+  return {
+    text: `${r.title}\n${r.lines.join('\n')}`,
+    embed: { title: r.title, description: '```\n' + r.lines.join('\n') + '\n```', color: 0xc9a227, footer: { text: 'vanilla recipe data · misode/mcmeta' } },
+  }
+}
+
+async function cmdMap(rcon) {
+  const { names } = await listPlayers(rcon)
+  const markers = []
+  for (const name of names) {
+    const pos = await getPos(rcon, name).catch(() => null)
+    if (pos && (!pos.dim || pos.dim === 'minecraft:overworld')) markers.push(pos)
+  }
+  let rendered
+  try {
+    rendered = renderMap({ worldDir: config.worldDir, markers })
+  } catch (err) {
+    return { text: `Couldn't render the map: ${err.message}` }
+  }
+  return {
+    text: `Overworld map (${rendered.width}x${rendered.height}, ${markers.length} player marker${markers.length === 1 ? '' : 's'}) posted in Fluxer.`,
+    files: [{ name: 'map.png', data: rendered.buffer, contentType: 'image/png' }],
+  }
+}
+
+function cmdHelp() {
+  const x = p()
+  return {
+    text: [
+      `${x} list — online players`,
+      `${x} where <player> — position + dimension`,
+      `${x} seed / time / tps — server info`,
+      `${x} recipe <item> — vanilla crafting recipe`,
+      `${x} map — render the overworld map`,
+    ].join('\n'),
+  }
+}
+
+export async function runCommand(parsed, rcon) {
+  switch (parsed.cmd) {
+    case 'help': return cmdHelp()
+    case 'list': case 'players': case 'who': return cmdList(rcon)
+    case 'where': case 'pos': case 'whereis': return cmdWhere(rcon, parsed.arg)
+    case 'seed': return cmdSeed(rcon)
+    case 'time': case 'weather': return cmdTime(rcon)
+    case 'tps': case 'perf': return cmdTps(rcon)
+    case 'recipe': case 'craft': case 'crafting': return cmdRecipe(parsed.arg)
+    case 'map': return cmdMap(rcon)
+    default: return { text: `Unknown command "${parsed.cmd}". Try "${p()} help".` }
+  }
+}

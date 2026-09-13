@@ -12,6 +12,19 @@ server's log file and talking RCON.
   channel and relays messages into the game with `tellraw @a` over RCON.
   Skipped entirely if `FLUXER_BOT_TOKEN` isn't set — the MC -> Fluxer
   direction still works on its own.
+- **`!mc` commands**, usable from Minecraft chat, Fluxer, and (via
+  [Crosstalk](https://github.com/RadSoloCup/fightersguild-crosstalk)) Discord —
+  answers go back to wherever it was typed *and* into Fluxer, so everyone sees
+  the same reply regardless of which surface asked:
+  - `!mc list` — online players
+  - `!mc where <player>` — position + dimension
+  - `!mc seed` / `!mc time` / `!mc tps` — server info
+  - `!mc recipe <item>` — vanilla crafting recipe (modded items aren't covered
+    — there's no public structured recipe data for this pack's thousands of
+    mod items)
+  - `!mc map` — renders a top-down PNG of the currently-generated overworld
+    region files (reading the raw `.mca` files directly, no map mod needed)
+    with online players marked, posted as an image in Fluxer
 
 ## Deploy (Unraid / Docker Compose)
 
@@ -38,6 +51,9 @@ Minecraft container on `mc-net` — no ports of its own.
 | Project | Used for | License |
 | --- | --- | --- |
 | [**Fluxer**](https://github.com/fluxerapp/fluxer) | the chat platform, gateway and webhook protocol | AGPL-3.0 |
+| [`prismarine-nbt`](https://github.com/PrismarineJS/prismarine-nbt) | parsing chunk NBT for `!mc map` | MIT |
+| [`pngjs`](https://github.com/pngjs/pngjs) | encoding the map PNG | MIT |
+| [misode/mcmeta](https://github.com/misode/mcmeta) | vanilla recipe data for `!mc recipe` | MIT |
 
 ## License
 

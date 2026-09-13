@@ -4,16 +4,29 @@ export function log(...a) {
   console.log(new Date().toISOString(), ...a)
 }
 
-// Discord-wire-compatible webhook payload: { content?, username?, avatar_url? }.
-export async function postWebhook(payload) {
+// Discord-wire-compatible webhook payload: { content?, username?, avatar_url?, embeds? }.
+// `files`, if given, is [{ name, data: Buffer, contentType }] — sent as
+// multipart/form-data alongside a `payload_json` field, same as Discord.
+export async function postWebhook(payload, files) {
+  let body, headers
+  if (files?.length) {
+    const form = new FormData()
+    form.set('payload_json', JSON.stringify(payload))
+    files.forEach((f, i) => form.set(`files[${i}]`, new Blob([f.data], { type: f.contentType }), f.name))
+    body = form
+    headers = { 'user-agent': config.userAgent }
+  } else {
+    body = JSON.stringify(payload)
+    headers = { 'content-type': 'application/json', 'user-agent': config.userAgent }
+  }
   const res = await fetch(config.fluxer.webhookUrl, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'user-agent': config.userAgent },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(20_000),
+    headers,
+    body,
+    signal: AbortSignal.timeout(30_000),
   })
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`POST webhook → ${res.status} ${body.slice(0, 200)}`)
+    const t = await res.text().catch(() => '')
+    throw new Error(`POST webhook → ${res.status} ${t.slice(0, 200)}`)
   }
 }

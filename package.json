@@ -11,6 +11,9 @@
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {},
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "prismarine-nbt": "^2.8.0"
+  },
   "license": "AGPL-3.0-or-later"
 }
