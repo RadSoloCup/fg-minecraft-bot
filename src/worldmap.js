@@ -102,53 +102,71 @@ function drawMarker(png, x, z) {
   }
 }
 
-// markers: [{ x, z, label? }] in world block coordinates (overworld only).
-export function renderMap({ worldDir, markers = [] }) {
+// Reads the world's spawn point out of level.dat (gzip-compressed NBT).
+export async function readWorldSpawn(worldDir) {
+  const buf = readFileSync(join(worldDir, 'level.dat'))
+  const { parsed } = await nbt.parse(buf)
+  const d = nbt.simplify(parsed).Data
+  return { x: d?.SpawnX ?? 0, z: d?.SpawnZ ?? 0 }
+}
+
+// Renders a `radius`-block square centered on (centerX, centerZ) — NOT the
+// whole world. This save has 3000+ region files spanning ~63000x57000
+// blocks (years of FTB Chunks-loaded exploration); rendering that fully
+// would mean reading gigabytes of region data for an image nobody could
+// usefully view. A bounded area around spawn/players is what's actually
+// useful, and only the handful of region files it touches get read.
+// markers: [{ x, z }] in world block coordinates (overworld only).
+export function renderMap({ worldDir, centerX = 0, centerZ = 0, radius = 600, markers = [] }) {
   const regionDir = join(worldDir, 'region')
   if (!existsSync(regionDir)) throw new Error(`no region directory at ${regionDir}`)
-  const regions = readdirSync(regionDir)
-    .map(f => f.match(/^r\.(-?\d+)\.(-?\d+)\.mca$/))
-    .filter(Boolean)
-    .map(m => ({ file: m[0], rx: Number(m[1]), rz: Number(m[2]) }))
-  if (!regions.length) throw new Error('no region files found')
 
-  const minRX = Math.min(...regions.map(r => r.rx))
-  const maxRX = Math.max(...regions.map(r => r.rx))
-  const minRZ = Math.min(...regions.map(r => r.rz))
-  const maxRZ = Math.max(...regions.map(r => r.rz))
-  const width = (maxRX - minRX + 1) * REGION_PX
-  const height = (maxRZ - minRZ + 1) * REGION_PX
-  if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
-    throw new Error(`explored area too large to render (${width}x${height}px, max ${MAX_IMAGE_DIM})`)
-  }
+  radius = Math.min(Math.max(Math.round(radius), 64), Math.floor(MAX_IMAGE_DIM / 2))
+  const minX = Math.round(centerX) - radius
+  const minZ = Math.round(centerZ) - radius
+  const width = radius * 2
+  const height = radius * 2
+
+  const minRX = Math.floor(minX / REGION_PX)
+  const maxRX = Math.floor((minX + width - 1) / REGION_PX)
+  const minRZ = Math.floor(minZ / REGION_PX)
+  const maxRZ = Math.floor((minZ + height - 1) / REGION_PX)
 
   const png = new PNG({ width, height })
   png.data.fill(0)
 
-  for (const r of regions) {
-    let buf
-    try { buf = readFileSync(join(regionDir, r.file)) } catch { continue }
-    if (buf.length < 8192) continue
-    const originPxX = (r.rx - minRX) * REGION_PX
-    const originPxZ = (r.rz - minRZ) * REGION_PX
+  for (let rx = minRX; rx <= maxRX; rx++) {
+    for (let rz = minRZ; rz <= maxRZ; rz++) {
+      const file = join(regionDir, `r.${rx}.${rz}.mca`)
+      if (!existsSync(file)) continue
+      let buf
+      try { buf = readFileSync(file) } catch { continue }
+      if (buf.length < 8192) continue
 
-    for (let cz = 0; cz < REGION_CHUNKS; cz++) {
-      for (let cx = 0; cx < REGION_CHUNKS; cx++) {
-        const i = cx + cz * REGION_CHUNKS
-        const v = buf.readUInt32BE(i * 4)
-        const off = v >>> 8
-        if (!off) continue
-        let chunk
-        try { chunk = readChunk(buf, off) } catch { continue }
-        if (!chunk) continue
-        renderChunk(png, chunk, originPxX + cx * CHUNK_BLOCKS, originPxZ + cz * CHUNK_BLOCKS)
+      for (let cz = 0; cz < REGION_CHUNKS; cz++) {
+        for (let cx = 0; cx < REGION_CHUNKS; cx++) {
+          const chunkWorldX = rx * REGION_PX + cx * CHUNK_BLOCKS
+          const chunkWorldZ = rz * REGION_PX + cz * CHUNK_BLOCKS
+          // skip chunks entirely outside the requested square
+          if (chunkWorldX + CHUNK_BLOCKS <= minX || chunkWorldX >= minX + width) continue
+          if (chunkWorldZ + CHUNK_BLOCKS <= minZ || chunkWorldZ >= minZ + height) continue
+
+          const i = cx + cz * REGION_CHUNKS
+          const v = buf.readUInt32BE(i * 4)
+          const off = v >>> 8
+          if (!off) continue
+          let chunk
+          try { chunk = readChunk(buf, off) } catch { continue }
+          if (!chunk) continue
+          renderChunk(png, chunk, chunkWorldX - minX, chunkWorldZ - minZ)
+        }
       }
     }
   }
 
   for (const m of markers) {
-    drawMarker(png, Math.round(m.x) - minRX * REGION_PX, Math.round(m.z) - minRZ * REGION_PX)
+    drawMarker(png, Math.round(m.x) - minX, Math.round(m.z) - minZ)
   }
 
-  return { buffer: PNG.sync.write(png), width, height }
+  return { buffer: PNG.sync.write(png), width, height, minX, minZ }
 }

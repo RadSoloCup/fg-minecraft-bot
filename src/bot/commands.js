@@ -1,6 +1,6 @@
 import { config } from '../config.js'
 import { findRecipe } from '../mcdata.js'
-import { renderMap } from '../worldmap.js'
+import { renderMap, readWorldSpawn } from '../worldmap.js'
 
 const p = () => config.commandPrefix
 
@@ -95,21 +95,40 @@ async function cmdRecipe(arg) {
   }
 }
 
-async function cmdMap(rcon) {
+async function cmdMap(rcon, arg) {
+  const radiusArg = Number(arg)
+  const radius = Number.isFinite(radiusArg) && radiusArg > 0 ? radiusArg : 600
+
   const { names } = await listPlayers(rcon)
   const markers = []
   for (const name of names) {
     const pos = await getPos(rcon, name).catch(() => null)
     if (pos && (!pos.dim || pos.dim === 'minecraft:overworld')) markers.push(pos)
   }
+
+  // Center on the average of online overworld players, or world spawn if
+  // nobody's out there (or everyone's in another dimension).
+  let centerX, centerZ
+  if (markers.length) {
+    centerX = markers.reduce((s, m) => s + m.x, 0) / markers.length
+    centerZ = markers.reduce((s, m) => s + m.z, 0) / markers.length
+  } else {
+    try {
+      const spawn = await readWorldSpawn(config.worldDir)
+      centerX = spawn.x; centerZ = spawn.z
+    } catch { centerX = 0; centerZ = 0 }
+  }
+
   let rendered
   try {
-    rendered = renderMap({ worldDir: config.worldDir, markers })
+    rendered = renderMap({ worldDir: config.worldDir, centerX, centerZ, radius, markers })
   } catch (err) {
     return { text: `Couldn't render the map: ${err.message}` }
   }
   return {
-    text: `Overworld map (${rendered.width}x${rendered.height}, ${markers.length} player marker${markers.length === 1 ? '' : 's'}) posted in Fluxer.`,
+    text: `Overworld map, ${rendered.width}x${rendered.height} centered on ${Math.round(centerX)}, ${Math.round(centerZ)}` +
+      `${markers.length ? ` (${markers.length} player marker${markers.length === 1 ? '' : 's'})` : ' (world spawn — nobody online)'}` +
+      ' — posted in Fluxer.',
     files: [{ name: 'map.png', data: rendered.buffer, contentType: 'image/png' }],
   }
 }
@@ -122,7 +141,7 @@ function cmdHelp() {
       `${x} where <player> — position + dimension`,
       `${x} seed / time / tps — server info`,
       `${x} recipe <item> — vanilla crafting recipe`,
-      `${x} map — render the overworld map`,
+      `${x} map [radius] — render the overworld map around players (or spawn), default radius 600`,
     ].join('\n'),
   }
 }
@@ -136,7 +155,7 @@ export async function runCommand(parsed, rcon) {
     case 'time': case 'weather': return cmdTime(rcon)
     case 'tps': case 'perf': return cmdTps(rcon)
     case 'recipe': case 'craft': case 'crafting': return cmdRecipe(parsed.arg)
-    case 'map': return cmdMap(rcon)
+    case 'map': return cmdMap(rcon, parsed.arg)
     default: return { text: `Unknown command "${parsed.cmd}". Try "${p()} help".` }
   }
 }

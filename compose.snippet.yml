@@ -11,8 +11,10 @@ services:
     volumes:
       # Read-only view of the Minecraft server's log directory.
       - /mnt/user/appdata/ftbdirewolf20_120/logs:/mc-logs:ro
-      # Read-only view of the world save, for `!mc map`.
-      - /mnt/user/appdata/ftbdirewolf20_120/world:/world:ro
+      # Read-only view of the world save, for `!mc map`. NOTE: the save folder
+      # is named after server.properties' level-name (here "fightersguild"),
+      # NOT literally "world" — check yours before copying this.
+      - /mnt/user/appdata/ftbdirewolf20_120/fightersguild:/world:ro
     networks:
       - mc-net                # shared with the Minecraft container, for RCON
 
