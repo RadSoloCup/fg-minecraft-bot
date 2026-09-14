@@ -23,8 +23,11 @@ async function fetchRecipeJson(id) {
   return json
 }
 
-const itemLabel = id => String(id).replace(/^minecraft:/, '').replace(/_/g, ' ')
-const tagLabel = id => '#' + String(id).replace(/^minecraft:/, '').replace(/_/g, ' ')
+// Strips any "namespace:" prefix (not just vanilla's) so modded items read
+// naturally too — "soulwood planks", not "malum:soulwood planks". Which mod
+// an item belongs to is still shown separately, in the embed footer.
+const itemLabel = id => String(id).replace(/^[a-z0-9_.-]+:/, '').replace(/_/g, ' ')
+const tagLabel = id => '#' + String(id).replace(/^[a-z0-9_.-]+:/, '').replace(/_/g, ' ')
 
 function ingredientLabel(v) {
   if (v == null) return '?'
@@ -44,8 +47,17 @@ function resultLabel(r) {
 
 // Returns { title, lines[] } for a chat-friendly rendering, or null if the
 // recipe type isn't one we know how to render (still shown raw as a fallback).
-function formatRecipe(id, r) {
-  const title = `${itemLabel(id)} — ${resultLabel(r.result)}`
+// Exported so moddata.js can reuse it for this pack's own recipes — the JSON
+// shape (type/pattern/key/ingredients/result) is the same convention modded
+// recipes use, not something specific to vanilla.
+export function formatRecipe(id, r) {
+  // The recipe id and its result are usually the same item (id is often
+  // literally the result's item id) — only show both when they actually
+  // differ, e.g. a smithing recipe id vs. its upgraded result.
+  const idLabel = itemLabel(id)
+  const resLabel = resultLabel(r.result)
+  const resLabelNoCount = resLabel.replace(/ x\d+$/, '')
+  const title = resLabelNoCount === idLabel ? resLabel : `${idLabel} — ${resLabel}`
   const type = (r.type || '').replace(/^minecraft:/, '')
 
   if (type === 'crafting_shaped') {

@@ -1,5 +1,6 @@
 import { config } from '../config.js'
 import { findRecipe } from '../mcdata.js'
+import { findModdedRecipe, findKeybinds } from '../moddata.js'
 import { renderMap, readWorldSpawn } from '../worldmap.js'
 
 const p = () => config.commandPrefix
@@ -86,12 +87,35 @@ async function cmdTps(rcon) {
 }
 
 async function cmdRecipe(arg) {
-  if (!arg) return { text: `Usage: ${p()} recipe <item> (vanilla items only)` }
+  if (!arg) return { text: `Usage: ${p()} recipe <item> — checks this modpack first, then vanilla` }
+
+  // This pack's own items first (covers modded items and any pack-specific
+  // overrides), vanilla as a fallback for anything not made by a mod.
+  const modded = await findModdedRecipe(arg).catch(() => null)
+  if (modded) {
+    return {
+      text: `${modded.title}\n${modded.lines.join('\n')}`,
+      embed: { title: modded.title, description: '```\n' + modded.lines.join('\n') + '\n```', color: 0x22d3ee, footer: { text: `${modded.modId} · this modpack` } },
+    }
+  }
+
   const r = await findRecipe(arg)
-  if (!r) return { text: `No vanilla recipe found for "${arg}".` }
+  if (!r) return { text: `No recipe found for "${arg}" in this modpack or vanilla.` }
   return {
     text: `${r.title}\n${r.lines.join('\n')}`,
     embed: { title: r.title, description: '```\n' + r.lines.join('\n') + '\n```', color: 0xc9a227, footer: { text: 'vanilla recipe data · misode/mcmeta' } },
+  }
+}
+
+async function cmdKeybind(arg) {
+  const matches = await findKeybinds(arg).catch(() => null)
+  if (matches === null) return { text: `Couldn't reach the keybind data right now — try again in a bit.` }
+  if (!matches.length) return { text: `No keybinds found matching "${arg}". Try a mod name, like "${p()} keybind vampirism".` }
+  const lines = matches.map(k => `${k.key} — ${k.modName}: ${k.action}`)
+  const suffix = matches.length === 8 ? `\n(showing first 8 — try a more specific search)` : ''
+  return {
+    text: lines.join('\n') + suffix,
+    embed: { title: arg ? `Keybinds matching "${arg}"` : 'Keybinds', description: lines.join('\n') + suffix, color: 0x22d3ee, footer: { text: 'from options.txt · this modpack' } },
   }
 }
 
@@ -140,7 +164,8 @@ function cmdHelp() {
       `${x} list — online players`,
       `${x} where <player> — position + dimension`,
       `${x} seed / time / tps — server info`,
-      `${x} recipe <item> — vanilla crafting recipe`,
+      `${x} recipe <item> — crafting recipe (checks this modpack first, then vanilla)`,
+      `${x} keybind <mod or action> — look up a keybind from this modpack`,
       `${x} map [radius] — render the overworld map around players (or spawn), default radius 1200 (admin only)`,
     ].join('\n'),
   }
@@ -159,6 +184,7 @@ export async function runCommand(parsed, rcon, invoker) {
     case 'time': case 'weather': return cmdTime(rcon)
     case 'tps': case 'perf': return cmdTps(rcon)
     case 'recipe': case 'craft': case 'crafting': return cmdRecipe(parsed.arg)
+    case 'keybind': case 'keybinds': case 'key': case 'keys': return cmdKeybind(parsed.arg)
     case 'map':
       if (!isAdmin(invoker)) return { text: `Only admins can run "${p()} map".` }
       return cmdMap(rcon, parsed.arg)
