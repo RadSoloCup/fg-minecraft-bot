@@ -2,6 +2,7 @@ import { config } from '../config.js'
 import { findRecipe } from '../mcdata.js'
 import { findModdedRecipe, findKeybinds } from '../moddata.js'
 import { renderMap, readWorldSpawn } from '../worldmap.js'
+import { cmdRestartVote } from './restartVote.js'
 
 const p = () => config.commandPrefix
 
@@ -167,6 +168,7 @@ function cmdHelp() {
       `${x} recipe <item> — crafting recipe (checks this modpack first, then vanilla)`,
       `${x} keybind <mod or action> — look up a keybind from this modpack`,
       `${x} map [radius] — render the overworld map around players (or spawn), default radius 1200 (admin only)`,
+      `${x} restart — vote to restart the server (needs a majority of online players within 2 minutes, 1 hour cooldown after a restart)`,
     ].join('\n'),
   }
 }
@@ -188,6 +190,7 @@ export async function runCommand(parsed, rcon, invoker) {
     case 'map':
       if (!isAdmin(invoker)) return { text: `Only admins can run "${p()} map".` }
       return cmdMap(rcon, parsed.arg)
+    case 'restart': case 'restartvote': case 'vote': return cmdRestartVote(rcon, invoker)
     default: return { text: `Unknown command "${parsed.cmd}". Try "${p()} help".` }
   }
 }
