@@ -1,5 +1,6 @@
 import { tellrawAll } from '../rcon.js'
 import { postWebhook, log } from '../lib.js'
+import { randomWarQuote } from './warQuotes.js'
 
 const VOTE_WINDOW_MS = 2 * 60 * 1000
 const WARNING_LEAD_MS = 5 * 60 * 1000
@@ -14,6 +15,10 @@ let cooldownUntil = 0
 
 function majorityNeeded(onlineCount) {
   return Math.floor(onlineCount / 2) + 1
+}
+
+function rollD20() {
+  return Math.floor(Math.random() * 20) + 1
 }
 
 async function announce(rcon, text) {
@@ -39,6 +44,16 @@ async function expireVote(rcon) {
   const needed = majorityNeeded(count)
   const had = activeVote.votesFor.size
   clearActiveVote()
+
+  // A dead-even split (only possible with an even online count, since
+  // `needed` is a majority = half + 1) can never close the gap on its own —
+  // it just sits here until time runs out. Rather than declare it a flat
+  // failure, break the tie with a d20 instead.
+  if (count > 0 && count % 2 === 0 && had === count / 2) {
+    await resolveTie(rcon, had, count)
+    return
+  }
+
   await announce(rcon, `Restart vote failed — only ${had}/${needed} needed votes came in within 2 minutes.`)
 }
 
@@ -69,6 +84,20 @@ async function passVote(rcon) {
   }, WARNING_LEAD_MS)
 }
 
+// Called from expireVote() once the 2-minute window closes on an exact
+// 50/50 split (activeVote is already cleared by then). Settles it with a
+// d20 instead of just declaring the vote failed.
+async function resolveTie(rcon, votes, count) {
+  const roll = rollD20()
+  const restarts = roll >= 11
+  await announce(rcon, `🎲 Vote tied ${votes}-${count - votes} — rolling a d20 to break it... it's a ${roll}! (1-10 = stand down, 11-20 = restart)`)
+  if (restarts) {
+    await passVote(rcon)
+  } else {
+    await announce(rcon, `Server stands. ${randomWarQuote()}`)
+  }
+}
+
 // Called for `!mc restart` (and aliases) from either side of the bridge.
 // Returning null means this function already broadcast its own message (via
 // announce()) and the caller should NOT also post the generic "[invoker] ..."
@@ -92,29 +121,26 @@ export async function cmdRestartVote(rcon, invoker) {
   }
 
   const needed = majorityNeeded(count)
+  const isNewVote = !activeVote
 
-  if (!activeVote) {
+  if (isNewVote) {
     activeVote = { votesFor: new Set([name]), initiator: invoker }
     activeVote.timer = setTimeout(() => expireVote(rcon).catch(err => log('restartVote: expire failed:', err.message)), VOTE_WINDOW_MS)
-
-    if (activeVote.votesFor.size >= needed) {
-      await passVote(rcon)
-      return null
-    }
-    await announce(rcon, `${invoker} started a restart vote! Type "!mc restart" to vote yes. Need ${needed}/${count} online players within 2 minutes.`)
-    return null
-  }
-
-  if (activeVote.votesFor.has(name)) {
+  } else if (activeVote.votesFor.has(name)) {
     return { text: `You already voted (${activeVote.votesFor.size}/${needed} needed).` }
+  } else {
+    activeVote.votesFor.add(name)
   }
 
-  activeVote.votesFor.add(name)
-  if (activeVote.votesFor.size >= needed) {
+  const votes = activeVote.votesFor.size
+
+  if (votes >= needed) {
     await passVote(rcon)
     return null
   }
 
-  await announce(rcon, `${invoker} voted to restart (${activeVote.votesFor.size}/${needed} needed).`)
+  await announce(rcon, isNewVote
+    ? `${invoker} started a restart vote! Type "!mc restart" to vote yes. Need ${needed}/${count} online players within 2 minutes.`
+    : `${invoker} voted to restart (${votes}/${needed} needed).`)
   return null
 }

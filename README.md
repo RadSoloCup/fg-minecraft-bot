@@ -27,6 +27,11 @@ server's log file and talking RCON.
     raw `.mca` region files directly (no map mod needed). This save has
     3000+ region files from years of exploration, so it only renders the
     requested square, not the whole world. **Admin-only** (`ADMIN_NAMES`).
+  - `!mc restart` — vote to restart the server. Needs a majority of online
+    players within 2 minutes (1 hour cooldown after a restart). If the
+    window closes on an exact 50/50 split, the bot rolls a d20 to break the
+    tie instead of just failing the vote: 1-10 and the server stands (with a
+    famous war quote), 11-20 and the restart goes ahead.
 
 ## Deploy (Unraid / Docker Compose)
 

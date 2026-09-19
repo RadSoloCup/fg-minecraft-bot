@@ -168,7 +168,7 @@ function cmdHelp() {
       `${x} recipe <item> — crafting recipe (checks this modpack first, then vanilla)`,
       `${x} keybind <mod or action> — look up a keybind from this modpack`,
       `${x} map [radius] — render the overworld map around players (or spawn), default radius 1200 (admin only)`,
-      `${x} restart — vote to restart the server (needs a majority of online players within 2 minutes, 1 hour cooldown after a restart)`,
+      `${x} restart — vote to restart the server (needs a majority of online players within 2 minutes, 1 hour cooldown after a restart; a 50/50 split gets settled with a d20 roll)`,
     ].join('\n'),
   }
 }
