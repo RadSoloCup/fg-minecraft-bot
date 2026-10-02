@@ -184,7 +184,9 @@ async function cmdPass(arg, invoker) {
   const lines = [
     `Season: ${r.season.name} (ends ${shortDate(r.season.endDate)})`,
     `Level ${r.level}/${r.maxLevel}`,
-    maxed ? 'Pass complete!' : `${bar(r.xpIntoLevel, r.xpPerLevel)} ${r.xpIntoLevel}/${r.xpPerLevel} XP to level ${r.level + 1}`,
+    maxed ? 'Pass complete!'
+      : r.seasonXp === 0 ? 'No XP yet this season (progress starts on their next login).'
+      : `${bar(r.xpIntoLevel, r.xpPerLevel)} ${r.xpIntoLevel}/${r.xpPerLevel} XP to level ${r.level + 1}`,
   ]
   return {
     text: `${r.name}'s battlepass\n${lines.join('\n')}`,
