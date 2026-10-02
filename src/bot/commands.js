@@ -131,7 +131,6 @@ async function cmdStatus(rcon) {
 // Discord users reach us through Crosstalk as "Name [Discord]"; drop the tag so
 // "!mc stats" with no name can still default to whoever asked.
 const cleanInvoker = invoker => String(invoker || '').replace(/\s*\[[^\]]*\]\s*$/, '').trim()
-const STATS_NOTE = 'Saved by the server every few minutes, so online players can lag slightly.'
 
 async function cmdStats(arg, invoker) {
   const name = arg || cleanInvoker(invoker)
@@ -146,7 +145,6 @@ async function cmdStats(arg, invoker) {
       description: lines.join('\n'),
       color: 0x22d3ee,
       thumbnail: { url: `https://mc-heads.net/avatar/${encodeURIComponent(s.name)}/64` },
-      footer: { text: STATS_NOTE },
     },
   }
 }
@@ -165,7 +163,7 @@ async function cmdTop(arg) {
   const lines = rows.map((r, i) => `${i + 1}. ${r.name} - ${m.fmt(r.value)}`)
   return {
     text: `Top ${m.label.toLowerCase()}\n${lines.join('\n')}`,
-    embed: { title: `Top ${m.label.toLowerCase()}`, description: lines.join('\n'), color: 0xc9a227, footer: { text: STATS_NOTE } },
+    embed: { title: `Top ${m.label.toLowerCase()}`, description: lines.join('\n'), color: 0xc9a227 },
   }
 }
 
@@ -195,7 +193,6 @@ async function cmdPass(arg, invoker) {
       description: lines.join('\n'),
       color: maxed ? 0xc9a227 : 0x4ade80,
       thumbnail: { url: `https://mc-heads.net/avatar/${encodeURIComponent(r.name)}/64` },
-      footer: { text: STATS_NOTE },
     },
   }
 }
@@ -206,7 +203,7 @@ async function cmdPassTop() {
   const lines = rows.map((r, i) => `${i + 1}. ${r.name} - level ${r.level} (${r.seasonXp.toLocaleString('en-US')} XP)`)
   return {
     text: `Battlepass leaders, ${season.name}\n${lines.join('\n')}`,
-    embed: { title: `Battlepass leaders: ${season.name}`, description: lines.join('\n'), color: 0xc9a227, footer: { text: STATS_NOTE } },
+    embed: { title: `Battlepass leaders: ${season.name}`, description: lines.join('\n'), color: 0xc9a227 },
   }
 }
 
