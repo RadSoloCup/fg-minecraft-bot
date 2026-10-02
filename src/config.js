@@ -27,6 +27,11 @@ export const config = {
     apiBase: env.FLUXER_API_BASE || (env.FLUXER_WEBHOOK_URL ? new URL(env.FLUXER_WEBHOOK_URL).origin : null),
   },
 
+  // Shown in `!mc status`. The icon must be a public URL (not an attachment)
+  // so it survives Crosstalk relaying the embed to Discord.
+  serverAddress: env.SERVER_ADDRESS || null,
+  serverIconUrl: env.SERVER_ICON_URL || null,
+
   userAgent: env.USER_AGENT || 'fightersguild-mc-bridge',
 }
 

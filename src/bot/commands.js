@@ -63,10 +63,10 @@ async function cmdSeed(rcon) {
 }
 
 async function cmdTime(rcon) {
-  const [dayOut, dayTimeOut] = await Promise.all([
-    rcon.exec('time query day'),
-    rcon.exec('time query daytime'),
-  ])
+  // Sequential, not Promise.all: vanilla/Forge RCON isn't safe for pipelined
+  // commands on one connection and can close the socket if two are in flight.
+  const dayOut = await rcon.exec('time query day')
+  const dayTimeOut = await rcon.exec('time query daytime')
   const day = (dayOut.match(/The time is (\d+)/) || [])[1]
   const ticks = Number((dayTimeOut.match(/The time is (\d+)/) || [])[1] ?? 0)
   const totalMinutes = Math.floor((((ticks / 1000) + 6) % 24) * 60)
@@ -94,16 +94,16 @@ async function cmdStatus(rcon) {
   } catch (err) {
     return { text: `Server looks offline or unreachable (RCON failed: ${err.message}).` }
   }
-  const [timeResult, tpsResult] = await Promise.all([
-    cmdTime(rcon).catch(() => null),
-    cmdTps(rcon).catch(() => null),
-  ])
+  // One at a time: RCON here drops the connection if commands overlap.
+  const timeResult = await cmdTime(rcon).catch(() => null)
+  const tpsResult = await cmdTps(rcon).catch(() => null)
   const lines = [
     `Online - ${players.count}/${players.max} player${players.count === 1 ? '' : 's'}` +
       (players.count ? `: ${players.names.join(', ')}` : ''),
   ]
   if (timeResult?.text) lines.push(timeResult.text)
   if (tpsResult?.text) lines.push(tpsResult.text)
+  if (config.serverAddress) lines.push(`Address: \`${config.serverAddress}\``)
   const text = lines.join('\n')
   return {
     text,
@@ -111,6 +111,7 @@ async function cmdStatus(rcon) {
       title: 'Fighters Guild Minecraft Server',
       description: text,
       color: players.count ? 0x4ade80 : 0x9ca3af,
+      ...(config.serverIconUrl ? { thumbnail: { url: config.serverIconUrl } } : {}),
     },
   }
 }
