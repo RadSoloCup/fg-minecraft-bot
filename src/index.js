@@ -5,22 +5,35 @@ import { RconClient, tellrawAll } from './rcon.js'
 import { GatewayClient } from './bot/gateway.js'
 import { parseCommand, runCommand } from './bot/commands.js'
 import { setGateway } from './health.js'
+import { startMonitor, onServerStopping, onServerStarted, refreshSoon } from './monitor.js'
 
 assertConfig()
 
 const avatarUrl = player => `https://mc-heads.net/avatar/${encodeURIComponent(player)}/64`
 
 // Matches log4j's line prefix: "[13Sep2026 09:47:04.674] [Server thread/INFO] [logger/]: <rest>"
-const LINE_RE = /^\[\d{1,2}\w+\d{4} [\d:.]+\] \[[^\]]+\] \[[^\]]*\]: (.*)$/
+// (older logs use "04Aug.2024", hence the dot).
+const LINE_RE = /^\[\d{1,2}[\w.]+\d{4} [\d:.]+\] \[[^\]]+\] \[([^\]]*)\]: (.*)$/
+const ADVANCEMENT_RE = /^(\S+) has (made the advancement|completed the challenge|reached the goal) \[(.+)\]$/
+
+// Players seen online, so death messages (which have no fixed wording, mods
+// add their own) can be recognized as "<online player> <anything>".
+const online = new Set()
 
 function parseLine(raw) {
   const m = raw.match(LINE_RE)
   if (!m) return null
-  const rest = m[1]
+  const [, logger, rest] = m
   let mm
   if ((mm = rest.match(/^<([^>]+)> ([\s\S]*)$/))) return { type: 'chat', player: mm[1], text: mm[2] }
   if ((mm = rest.match(/^(\S+) joined the game$/))) return { type: 'join', player: mm[1] }
   if ((mm = rest.match(/^(\S+) left the game$/))) return { type: 'leave', player: mm[1] }
+  if (/DedicatedServer/.test(logger) && /^Done \(/.test(rest)) return { type: 'started' }
+  if (!/MinecraftServer/.test(logger)) return null
+  if (rest === 'Stopping server') return { type: 'stopping' }
+  if ((mm = rest.match(ADVANCEMENT_RE))) return { type: 'advancement', player: mm[1], kind: mm[2], title: mm[3] }
+  const first = rest.split(' ')[0]
+  if (online.has(first) && rest.length > first.length + 1) return { type: 'death', player: first, text: rest }
   return null
 }
 
@@ -67,11 +80,24 @@ log(`watching ${config.logPath} for chat`)
 tailFile(config.logPath, raw => {
   const ev = parseLine(raw)
   if (!ev) return
+  const relay = content => postWebhook({ username: 'Minecraft', avatar_url: ev.player ? avatarUrl(ev.player) : undefined, content })
+    .catch(err => log('webhook post failed:', err.message))
 
-  if (ev.type !== 'chat') {
-    postWebhook({ username: 'Minecraft', content: `_${ev.player} ${ev.type === 'join' ? 'joined' : 'left'} the game_` })
-      .catch(err => log('webhook post failed:', err.message))
-    return
+  switch (ev.type) {
+    case 'join':
+    case 'leave':
+      if (ev.type === 'join') online.add(ev.player); else online.delete(ev.player)
+      refreshSoon()
+      return relay(`_${ev.player} ${ev.type === 'join' ? 'joined' : 'left'} the game_`)
+    case 'death':
+      return relay(`_${ev.text}_`)
+    case 'advancement':
+      return relay(`**${ev.player}** ${ev.kind} **${ev.title}**`)
+    case 'stopping':
+      online.clear()
+      return onServerStopping()
+    case 'started':
+      return onServerStarted()
   }
 
   handleCommand(ev.player, ev.text).then(handled => {
@@ -80,6 +106,15 @@ tailFile(config.logPath, raw => {
       .catch(err => log('webhook post failed:', err.message))
   }).catch(err => log('command handling failed:', err.message))
 })
+
+// Seed the online list (the log tail starts at the end of the file, so it
+// never sees joins that happened before the bridge started).
+if (rcon) {
+  rcon.exec('list').then(out => {
+    const m = out.match(/players online:\s*(.*)/)
+    for (const n of (m?.[1] || '').split(',').map(x => x.trim()).filter(Boolean)) online.add(n)
+  }).catch(() => {})
+}
 
 // ── Fluxer -> Minecraft (optional; needs a bot token) ───────────────────────
 if (config.fluxer.botToken) {
@@ -103,6 +138,7 @@ if (config.fluxer.botToken) {
   })
 
   gw.start().catch(err => log(`bot: failed to start: ${err.message}`))
+  if (rcon) startMonitor(rcon, gw)
 
   function shutdown() {
     try { gw.stop() } catch {}

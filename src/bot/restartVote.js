@@ -1,6 +1,7 @@
 import { tellrawAll } from '../rcon.js'
 import { postWebhook, log } from '../lib.js'
 import { randomWarQuote } from './warQuotes.js'
+import { noteExpectedRestart } from '../monitor.js'
 
 const VOTE_WINDOW_MS = 2 * 60 * 1000
 const WARNING_LEAD_MS = 5 * 60 * 1000
@@ -71,6 +72,7 @@ async function passVote(rcon) {
   }, WARNING_LEAD_MS - 10_000)
 
   setTimeout(async () => {
+    noteExpectedRestart()
     try {
       await rcon.exec('save-all')
       await rcon.exec('stop')

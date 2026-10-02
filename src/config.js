@@ -3,6 +3,11 @@ const env = process.env
 export const config = {
   logPath: env.MC_LOG_PATH || '/mc-logs/latest.log',
   worldDir: env.WORLD_DIR || '/world',
+  // Server root (read-only): usercache.json for uuid -> name, and the deployed
+  // KubeJS battlepass script for season names.
+  serverDir: env.SERVER_DIR || '/server',
+  // Background RCON poll for the bot's status line and downtime alerts.
+  monitorIntervalMs: Number(env.MONITOR_INTERVAL_MS || 60_000),
   commandPrefix: env.COMMAND_PREFIX || '!mc',
   // Names allowed to run admin-only commands (currently just `map`), matched
   // case-insensitively against either the Minecraft player name or the

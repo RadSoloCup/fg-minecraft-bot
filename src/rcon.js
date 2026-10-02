@@ -92,7 +92,15 @@ export class RconClient {
     }
   }
 
-  async exec(command) {
+  // Queued: the server drops the connection if two commands are in flight at
+  // once, and the status monitor polls in the background alongside commands.
+  exec(command) {
+    const run = (this._queue || Promise.resolve()).then(() => this._exec(command))
+    this._queue = run.catch(() => {})
+    return run
+  }
+
+  async _exec(command) {
     await this.ensureConnected()
     const id = this.nextId++
     return new Promise((resolve, reject) => {

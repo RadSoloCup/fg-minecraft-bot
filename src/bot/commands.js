@@ -4,6 +4,7 @@ import { findModdedRecipe, findKeybinds } from '../moddata.js'
 import { renderMap, readWorldSpawn } from '../worldmap.js'
 import { cmdRestartVote } from './restartVote.js'
 import { backendChecks } from '../health.js'
+import { playerStats, leaderboard, METRICS, playerPass, passLeaderboard } from '../stats.js'
 
 const p = () => config.commandPrefix
 
@@ -127,6 +128,86 @@ async function cmdStatus(rcon) {
   }
 }
 
+// Discord users reach us through Crosstalk as "Name [Discord]"; drop the tag so
+// "!mc stats" with no name can still default to whoever asked.
+const cleanInvoker = invoker => String(invoker || '').replace(/\s*\[[^\]]*\]\s*$/, '').trim()
+const STATS_NOTE = 'Saved by the server every few minutes, so online players can lag slightly.'
+
+async function cmdStats(arg, invoker) {
+  const name = arg || cleanInvoker(invoker)
+  if (!name) return { text: `Usage: ${p()} stats <player>` }
+  const s = await playerStats(name)
+  if (!s) return { text: `No stats found for "${name}" (they need to have joined the server). Usage: ${p()} stats <player>` }
+  const lines = Object.entries(METRICS).map(([key, m]) => `${m.label}: ${m.fmt(s[key])}`)
+  return {
+    text: `${s.name}\n${lines.join('\n')}`,
+    embed: {
+      title: `${s.name}'s stats`,
+      description: lines.join('\n'),
+      color: 0x22d3ee,
+      thumbnail: { url: `https://mc-heads.net/avatar/${encodeURIComponent(s.name)}/64` },
+      footer: { text: STATS_NOTE },
+    },
+  }
+}
+
+const TOP_ALIASES = { time: 'playtime', played: 'playtime', death: 'deaths', kill: 'kills', mobs: 'kills',
+  mining: 'mined', blocks: 'mined', travel: 'distance', km: 'distance', battlepass: 'pass', level: 'pass' }
+
+async function cmdTop(arg) {
+  const want = (arg || 'playtime').toLowerCase()
+  const metric = TOP_ALIASES[want] || want
+  if (metric === 'pass') return cmdPassTop()
+  const m = METRICS[metric]
+  if (!m) return { text: `Usage: ${p()} top [${[...Object.keys(METRICS), 'pass'].join('|')}]` }
+  const rows = await leaderboard(metric)
+  if (!rows.length) return { text: `No ${m.label.toLowerCase()} recorded yet.` }
+  const lines = rows.map((r, i) => `${i + 1}. ${r.name} - ${m.fmt(r.value)}`)
+  return {
+    text: `Top ${m.label.toLowerCase()}\n${lines.join('\n')}`,
+    embed: { title: `Top ${m.label.toLowerCase()}`, description: lines.join('\n'), color: 0xc9a227, footer: { text: STATS_NOTE } },
+  }
+}
+
+const bar = (n, total, width = 12) => {
+  const filled = Math.round(Math.max(0, Math.min(1, n / total)) * width)
+  return '█'.repeat(filled) + '░'.repeat(width - filled)
+}
+const shortDate = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
+async function cmdPass(arg, invoker) {
+  const name = arg || cleanInvoker(invoker)
+  if (!name) return { text: `Usage: ${p()} pass <player>` }
+  const r = await playerPass(name)
+  if (!r) return { text: `No player named "${name}" has joined the server. Usage: ${p()} pass <player>` }
+  const maxed = r.level >= r.maxLevel
+  const lines = [
+    `Season: ${r.season.name} (ends ${shortDate(r.season.endDate)})`,
+    `Level ${r.level}/${r.maxLevel}`,
+    maxed ? 'Pass complete!' : `${bar(r.xpIntoLevel, r.xpPerLevel)} ${r.xpIntoLevel}/${r.xpPerLevel} XP to level ${r.level + 1}`,
+  ]
+  return {
+    text: `${r.name}'s battlepass\n${lines.join('\n')}`,
+    embed: {
+      title: `${r.name}'s battlepass`,
+      description: lines.join('\n'),
+      color: maxed ? 0xc9a227 : 0x4ade80,
+      thumbnail: { url: `https://mc-heads.net/avatar/${encodeURIComponent(r.name)}/64` },
+      footer: { text: STATS_NOTE },
+    },
+  }
+}
+
+async function cmdPassTop() {
+  const { season, rows } = await passLeaderboard()
+  if (!rows.length) return { text: `Nobody has battlepass XP in ${season.name} yet.` }
+  const lines = rows.map((r, i) => `${i + 1}. ${r.name} - level ${r.level} (${r.seasonXp.toLocaleString('en-US')} XP)`)
+  return {
+    text: `Battlepass leaders, ${season.name}\n${lines.join('\n')}`,
+    embed: { title: `Battlepass leaders: ${season.name}`, description: lines.join('\n'), color: 0xc9a227, footer: { text: STATS_NOTE } },
+  }
+}
+
 async function cmdRecipe(arg) {
   if (!arg) return { text: `Usage: ${p()} recipe <item> — checks this modpack first, then vanilla` }
 
@@ -204,6 +285,9 @@ function cmdHelp() {
     text: [
       `${x} status - server status (players, time, TPS, address, backend checks)`,
       `${x} list — online players`,
+      `${x} stats [player] - playtime, deaths, kills, blocks mined, distance`,
+      `${x} top [playtime|deaths|kills|mined|distance|pass] - leaderboards`,
+      `${x} pass [player] - battlepass level and progress this season`,
       `${x} where <player> — position + dimension`,
       `${x} seed / time / tps — server info`,
       `${x} recipe <item> — crafting recipe (checks this modpack first, then vanilla)`,
@@ -223,6 +307,9 @@ export async function runCommand(parsed, rcon, invoker) {
     case 'help': return cmdHelp()
     case 'status': case 'online': return cmdStatus(rcon)
     case 'list': case 'players': case 'who': return cmdList(rcon)
+    case 'stats': case 'stat': return cmdStats(parsed.arg, invoker)
+    case 'top': case 'leaderboard': case 'lb': return cmdTop(parsed.arg)
+    case 'pass': case 'battlepass': case 'bp': return cmdPass(parsed.arg, invoker)
     case 'where': case 'pos': case 'whereis': return cmdWhere(rcon, parsed.arg)
     case 'seed': return cmdSeed(rcon)
     case 'time': case 'weather': return cmdTime(rcon)

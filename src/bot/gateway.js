@@ -8,6 +8,7 @@ const OP = {
   DISPATCH: 0,
   HEARTBEAT: 1,
   IDENTIFY: 2,
+  PRESENCE_UPDATE: 3,
   RESUME: 6,
   RECONNECT: 7,
   INVALID_SESSION: 9,
@@ -115,10 +116,11 @@ export class GatewayClient extends EventEmitter {
       this.resumeUrl = d.resume_gateway_url || this.resumeUrl
       this.botUserId = d.user?.id ?? this.botUserId
       log(`bot: READY as ${d.user?.username ?? '?'} (${this.botUserId})`)
+      this._sendPresence()
       this.emit('ready', d)
       return
     }
-    if (type === 'RESUMED') { log('bot: resumed'); return }
+    if (type === 'RESUMED') { log('bot: resumed'); this._sendPresence(); return }
     if (type === 'MESSAGE_CREATE') {
       if (d.author?.id && d.author.id === this.botUserId) return // ignore self
       // Ignore only OUR OWN webhook's messages (this bridge's MC->Fluxer relay
@@ -128,6 +130,22 @@ export class GatewayClient extends EventEmitter {
       if (d.author?.bot && !d.webhook_id) return // real bot accounts, not webhook-authored humans
       this.emit('message', d)
     }
+  }
+
+  // Fluxer has no Discord-style "Playing ..." activity; the closest thing is a
+  // custom status line. Re-sent on every (re)connect since sessions don't keep it.
+  setPresence(status, text) {
+    this.presence = { status, text }
+    this._sendPresence()
+  }
+
+  _sendPresence() {
+    if (!this.presence) return
+    this._send(OP.PRESENCE_UPDATE, {
+      status: this.presence.status,
+      afk: false,
+      custom_status: this.presence.text ? { text: this.presence.text } : null,
+    })
   }
 
   _identify() {

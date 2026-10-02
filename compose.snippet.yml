@@ -15,6 +15,10 @@ services:
       # is named after server.properties' level-name (here "fightersguild"),
       # NOT literally "world" — check yours before copying this.
       - /mnt/user/appdata/ftbdirewolf20_120/fightersguild:/world:ro
+      # Read-only view of the server root, for usercache.json (player names
+      # for `!mc stats` / `!mc top`) and the KubeJS battlepass script (season
+      # names for `!mc pass`).
+      - /mnt/user/appdata/ftbdirewolf20_120:/server:ro
     networks:
       - mc-net                # shared with the Minecraft container, for RCON
 

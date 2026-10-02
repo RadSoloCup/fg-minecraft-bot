@@ -6,8 +6,15 @@ No plugin/mod needed on the Minecraft side — it works by tailing the
 server's log file and talking RCON.
 
 - **Minecraft -> Fluxer**: tails `logs/latest.log` for chat lines
-  (`<player> message`) and join/leave events, posts them to a Fluxer channel
-  via webhook (chat messages appear under the player's own name + head icon).
+  (`<player> message`), join/leave events, deaths (including modded death
+  messages) and advancements, and posts them to a Fluxer channel via webhook
+  (chat messages appear under the player's own name + head icon).
+- **Status line**: the bot's Fluxer custom status shows the live player count
+  (`3/30 online`), or `Server offline` / `Server restarting`.
+- **Downtime alerts**: posts in chat when the server shuts down cleanly, when
+  it stops responding without a clean shutdown (likely a crash), and again
+  when it's back up, with how long it was down. A restart from `!mc restart`
+  already announces itself, so only the "back up" message follows it.
 - **Fluxer -> Minecraft** *(optional)*: a small bot listens on one Fluxer
   channel and relays messages into the game with `tellraw @a` over RCON.
   Skipped entirely if `FLUXER_BOT_TOKEN` isn't set — the MC -> Fluxer
@@ -18,6 +25,15 @@ server's log file and talking RCON.
   the same reply regardless of which surface asked:
   - `!mc status` - server status: players online, time, TPS, join address, and a backend checklist (game server, public address, chat bridge, Fluxer bot)
   - `!mc list` — online players
+  - `!mc stats [player]` - playtime, deaths, mob kills, blocks mined and
+    distance travelled, from the world's own stats files
+  - `!mc top [playtime|deaths|kills|mined|distance|pass]` - top 10
+    leaderboards (`pass` ranks this season's battlepass XP)
+  - `!mc pass [player]` - battlepass level and progress this season, read
+    from the player data the KubeJS battlepass saves
+  - Stats and battlepass data are written by the server every few minutes
+    (and on logout), so someone who's online right now can lag slightly.
+    With no name given, these default to whoever asked.
   - `!mc where <player>` — position + dimension
   - `!mc seed` / `!mc time` / `!mc tps` — server info
   - `!mc recipe <item>` — vanilla crafting recipe (modded items aren't covered
