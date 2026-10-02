@@ -3,6 +3,7 @@ import { findRecipe } from '../mcdata.js'
 import { findModdedRecipe, findKeybinds } from '../moddata.js'
 import { renderMap, readWorldSpawn } from '../worldmap.js'
 import { cmdRestartVote } from './restartVote.js'
+import { backendChecks } from '../health.js'
 
 const p = () => config.commandPrefix
 
@@ -88,29 +89,39 @@ async function cmdTps(rcon) {
 }
 
 async function cmdStatus(rcon) {
-  let players
+  let players = null
   try {
     players = await listPlayers(rcon)
-  } catch (err) {
-    return { text: `Server looks offline or unreachable (RCON failed: ${err.message}).` }
-  }
+  } catch {}
+
   // One at a time: RCON here drops the connection if commands overlap.
-  const timeResult = await cmdTime(rcon).catch(() => null)
-  const tpsResult = await cmdTps(rcon).catch(() => null)
-  const lines = [
-    `Online - ${players.count}/${players.max} player${players.count === 1 ? '' : 's'}` +
-      (players.count ? `: ${players.names.join(', ')}` : ''),
-  ]
+  const timeResult = players ? await cmdTime(rcon).catch(() => null) : null
+  const tpsResult = players ? await cmdTps(rcon).catch(() => null) : null
+  const checks = await backendChecks({ rconOk: !!players })
+
+  const lines = [players
+    ? `Online - ${players.count}/${players.max} player${players.count === 1 ? '' : 's'}` +
+      (players.count ? `: ${players.names.join(', ')}` : '')
+    : 'Offline - the game server is not responding']
   if (timeResult?.text) lines.push(timeResult.text)
   if (tpsResult?.text) lines.push(tpsResult.text)
-  if (config.serverAddress) lines.push(`Address: \`${config.serverAddress}\``)
-  const text = lines.join('\n')
+
+  // Minecraft's font has no colour emoji, so the in-game copy uses plain marks.
+  const checkLine = (c, yes, no) => `${c.ok ? yes : no} ${c.label}${c.detail ? ` (${c.detail})` : ''}`
+  const allUp = checks.every(c => c.ok)
+  const text = [
+    ...lines,
+    ...(config.serverAddress ? [`Address: ${config.serverAddress}`] : []),
+    ...checks.map(c => checkLine(c, '✔', '✘')),
+  ].join('\n')
+
   return {
     text,
     embed: {
       title: 'Fighters Guild Minecraft Server',
-      description: text,
-      color: players.count ? 0x4ade80 : 0x9ca3af,
+      description: [...lines, ...(config.serverAddress ? [`Address: \`${config.serverAddress}\``] : [])].join('\n'),
+      fields: [{ name: allUp ? 'All systems operational' : 'Some systems are down', value: checks.map(c => checkLine(c, '✅', '❌')).join('\n') }],
+      color: !players ? 0xef4444 : allUp ? 0x4ade80 : 0xf59e0b,
       ...(config.serverIconUrl ? { thumbnail: { url: config.serverIconUrl } } : {}),
     },
   }
@@ -191,7 +202,7 @@ function cmdHelp() {
   const x = p()
   return {
     text: [
-      `${x} status - server status (players, time, TPS)`,
+      `${x} status - server status (players, time, TPS, address, backend checks)`,
       `${x} list — online players`,
       `${x} where <player> — position + dimension`,
       `${x} seed / time / tps — server info`,

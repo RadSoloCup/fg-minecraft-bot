@@ -4,6 +4,7 @@ import { tailFile } from './logTail.js'
 import { RconClient, tellrawAll } from './rcon.js'
 import { GatewayClient } from './bot/gateway.js'
 import { parseCommand, runCommand } from './bot/commands.js'
+import { setGateway } from './health.js'
 
 assertConfig()
 
@@ -83,6 +84,7 @@ tailFile(config.logPath, raw => {
 // ── Fluxer -> Minecraft (optional; needs a bot token) ───────────────────────
 if (config.fluxer.botToken) {
   const gw = new GatewayClient()
+  setGateway(gw)
 
   gw.on('ready', () => log(`bot: relaying #${config.fluxer.channelId} <-> RCON`))
   gw.on('fatal', code => log(`bot: fatal gateway error ${code} — check FLUXER_BOT_TOKEN`))
