@@ -16,6 +16,7 @@ server's log file and talking RCON.
   [Crosstalk](https://github.com/RadSoloCup/fightersguild-crosstalk)) Discord —
   answers go back to wherever it was typed *and* into Fluxer, so everyone sees
   the same reply regardless of which surface asked:
+  - `!mc status` - server status (players online, time, TPS)
   - `!mc list` — online players
   - `!mc where <player>` — position + dimension
   - `!mc seed` / `!mc time` / `!mc tps` — server info

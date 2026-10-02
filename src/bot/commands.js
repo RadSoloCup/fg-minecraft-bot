@@ -87,6 +87,34 @@ async function cmdTps(rcon) {
   return { text: parts.join(' · ') }
 }
 
+async function cmdStatus(rcon) {
+  let players
+  try {
+    players = await listPlayers(rcon)
+  } catch (err) {
+    return { text: `Server looks offline or unreachable (RCON failed: ${err.message}).` }
+  }
+  const [timeResult, tpsResult] = await Promise.all([
+    cmdTime(rcon).catch(() => null),
+    cmdTps(rcon).catch(() => null),
+  ])
+  const lines = [
+    `Online - ${players.count}/${players.max} player${players.count === 1 ? '' : 's'}` +
+      (players.count ? `: ${players.names.join(', ')}` : ''),
+  ]
+  if (timeResult?.text) lines.push(timeResult.text)
+  if (tpsResult?.text) lines.push(tpsResult.text)
+  const text = lines.join('\n')
+  return {
+    text,
+    embed: {
+      title: 'Fighters Guild Minecraft Server',
+      description: text,
+      color: players.count ? 0x4ade80 : 0x9ca3af,
+    },
+  }
+}
+
 async function cmdRecipe(arg) {
   if (!arg) return { text: `Usage: ${p()} recipe <item> — checks this modpack first, then vanilla` }
 
@@ -162,6 +190,7 @@ function cmdHelp() {
   const x = p()
   return {
     text: [
+      `${x} status - server status (players, time, TPS)`,
       `${x} list — online players`,
       `${x} where <player> — position + dimension`,
       `${x} seed / time / tps — server info`,
@@ -180,6 +209,7 @@ function isAdmin(invoker) {
 export async function runCommand(parsed, rcon, invoker) {
   switch (parsed.cmd) {
     case 'help': return cmdHelp()
+    case 'status': case 'online': return cmdStatus(rcon)
     case 'list': case 'players': case 'who': return cmdList(rcon)
     case 'where': case 'pos': case 'whereis': return cmdWhere(rcon, parsed.arg)
     case 'seed': return cmdSeed(rcon)
